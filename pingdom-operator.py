@@ -11,18 +11,34 @@ from kubernetes.client.rest import ApiException
 
 class Kubernetes:
     class Ingress:
+        name = None
+        namespace = None
+        annotations = {}
+        https = False
+        hosts = {}
+
         def __init__(self, ingress):
             self.name = ingress.metadata.name
             self.namespace = ingress.metadata.namespace
             self.annotations = ingress.metadata.annotations
             if ingress.spec.tls:
                 self.https = True
-            self.hosts = []
             for rule in ingress.spec.rules:
-                self.hosts.append(rule.host)
+                self.hosts[rule.host] = True
+            self.integrationids = self.__integrations()
 
-        def integrations(self):
+        def __integrations(self):
             return self.annotations.get('pingdom-operator.io/integrations').split(',')
+
+        def json(self):
+            return {
+                'name': self.name,
+                'namespace': self.namespace,
+                'annotations': self.annotations,
+                'https': self.https,
+                'hosts': self.hosts,
+                'integrationids': self.integrationids
+            }
 
     def __init__(self):
         try:
@@ -34,7 +50,7 @@ class Kubernetes:
                 raise Exception("Could not configure kubernetes python client")
         self.v1 = client.NetworkingV1Api()
 
-    @cached(cache=TTLCache(maxsize=1, ttl=60))
+    @cached(cache=TTLCache(maxsize=1, ttl=90))
     def list_ingress_for_all_namespaces(self):
         try:
             response = self.v1.list_ingress_for_all_namespaces()
@@ -48,7 +64,7 @@ class Kubernetes:
         ingresses_list = []
         for ingress in self.list_ingress_for_all_namespaces():
             # Add only ingresses with pingdom operator annotations
-            for annotation in self.Ingress(ingress).annotations:
+            for annotation in ingress.metadata.annotations:
                 if annotation.startswith("pingdom-operator.io/"):
                     ingresses_list.append(self.Ingress(ingress))
                     break
@@ -176,7 +192,7 @@ class Pingdom:
             self.__parse_headers(response.headers)
 
             if response:
-                return dict(response.json())
+                return dict(response.json())['check']
             return None
 
         if name is not None:
@@ -188,7 +204,6 @@ class Pingdom:
                 if check['hostname'] == hostname:
                     return self.describe_check(checkid=check['id'])
         # {
-        #     "check": {
         #         "id": 11173154,
         #         "name": "dev.example.net",
         #         "resolution": 1,
@@ -224,11 +239,9 @@ class Pingdom:
         #         "status": "up",
         #         "tags": [],
         #         "probe_filters": []
-        #     }
         # }
 
         # {
-        #     "check": {
         #         "id": 6126477,
         #         "name": "example.app/resource/get",
         #         "resolution": 1,
@@ -279,10 +292,96 @@ class Pingdom:
         #         "probe_filters": [
         #             "region: EU"
         #         ]
-        #     }
         # }
 
+    # Work in idempotent way
+    def modify_check(self, checkid: int, ingress):
+        response = None
+        check_body = self.describe_check(checkid)
+        print(json.dumps(check_body, indent=4))
+        type = list(check_body['type'])[0]
+        if type != 'http':
+            raise Exception(
+                'Check type is not http: {} and not supported'.format(type))
 
+        check_modify_request = {
+            # addtags = []
+            # auth = ""
+            # custom_message = ""
+            # encryption = True
+            # host = ""
+            # integrationids = []
+            # ipv6 = False
+            # name = ""
+            # notifyagainevery = 0
+            # notifywhenbackup = True
+            # paused = False
+            # port = 80
+            # postdata = ""
+            # probe_filters = []
+            # requestheaders = []
+            # resolution = 5
+            # responsetime_threshold = 30000
+            # sendnotificationwhendown = 2
+            # shouldcontain = ""
+            # shouldnotcontain = ""
+            # ssl_down_days_before = 7
+            # tags = []
+            # teamids = ""
+            # url = ""
+            # userids = "",
+            # verify_certificate = True
+        }
+        print("Processing checkid: {}".format(checkid))
+
+        if ingress.https:
+            value = ingress.https
+            if check_body['type'][type]['encryption'] != value:
+                print(
+                    "  {}: {} -> {}".format('encryption', check_body[key], value))
+                check_modify_request['encryption'] = value
+
+        if list(ingress.hosts)[0]:
+            value = list(ingress.hosts)[0]
+            if check_body['hostname'] != value:
+                print("  {}: {} -> {}".format('hostname',
+                                              check_body['hostname'], value))
+                check_modify_request['hostname'] = value
+
+        for annotation in ingress.annotations:
+            if annotation.startswith("pingdom-operator.io/"):
+                key = annotation.split("/")[1]
+                value = ingress.annotations[annotation]
+                if key in ['ipv6', 'encryption', 'notifywhenbackup', 'paused', 'verify_certificate']:
+                    value = bool(value)
+                if key in ['port', 'notifyagainevery', 'resolution', 'responsetime_threshold', 'sendnotificationwhendown', 'ssl_down_days_before']:
+                    value = int(value)
+                if key in check_body:
+                    origin_value = check_body[key]
+                    if origin_value != value:
+                        print(
+                            "  {}: {} -> {}".format(key, check_body[key], value))
+                        check_modify_request[key] = value
+
+                if key in check_body['type'][type]:
+                    origin_value = check_body['type'][type][key]
+                    if origin_value != value:
+                        print(
+                            "  {}: {} -> {}".format(key, check_body['type'][type][key], value))
+                        check_modify_request['type'][type][key] = value
+
+        print("  check_modify_request: {}".format(
+            json.dumps(check_modify_request)))
+
+        url = self.api_url('checks', checkid)
+
+        response = self.s.put(url, json=check_modify_request)
+        response.raise_for_status()
+        self.__parse_headers(response.headers)
+
+        print(response.json())
+
+        return dict(response.json())
 
 def main():
     token = os.environ.get('BEARER_TOKEN')
@@ -292,15 +391,23 @@ def main():
     p.tags_filter = ['pingdom-operator', cluster_name]
 
     k = Kubernetes()
+
+
     for ingress in k.pingdom_ingresses():
         if ingress.annotations.get('pingdom-operator.io/name'):
             name = ingress.annotations.get('pingdom-operator.io/name')
-            # print(json.dumps(p.describe_check(name=name), indent=2))
-            break
+            check = p.describe_check(name=name)
+            if check:
+                checkid = check['id']
+                p.modify_check(checkid, ingress)
+                continue
+        # Doesn't support several hosts in one ingress
         for host in ingress.hosts:
-            # print(json.dumps(p.describe_check(hostname=host), indent=2))
-            pass
+            check = p.describe_check(hostname=host)
+            if check:
+                checkid = check['id']
+                p.modify_check(checkid, ingress)
 
 
-
-main()
+if __name__ == "__main__":
+    main()
