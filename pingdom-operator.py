@@ -505,6 +505,18 @@ class Pingdom:
 
         return dict(response.json())
 
+    def delete_check(self, checkid: int):
+        url = self.api_url('checks')
+        payload = {
+            'delcheckids': str(checkid)
+        }
+        response = self.s.delete(url, json=payload)
+        response.raise_for_status()
+        self.__parse_headers(response.headers)
+        self.__clear_caches()
+
+        return dict(response.json())
+
 def main():
     token = os.environ.get('BEARER_TOKEN')
     cluster_name = os.environ.get('CLUSTER_NAME', "default-cluster")
@@ -543,6 +555,16 @@ def main():
                     continue
 
             p.create_check(ingress, p.tags_filter)
+
+        for check in p.checks(*p.tags_filter):
+            candidate_checkid = check['id']
+            for ingress in k.pingdom_ingresses():
+                if ingress.hosts and check['hostname'] == ingress.hosts[0]:
+                    candidate_checkid = None
+                    break
+            if candidate_checkid:
+                p.delete_check(candidate_checkid)
+
 
         time.sleep(pause_time)
 
