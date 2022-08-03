@@ -1,0 +1,25 @@
+image:
+  repository: docker pull ghcr.io/nefelim4ag/pingdom-operator
+  tag: 0.0.1
+  pullPolicy: IfNotPresent
+  imagePullSecrets: []
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 5%
+    maxUnavailable: 10%
+
+resources:
+  requests:
+    cpu: "10m"
+    memory: 32Mi
+
+env:
+  CLUSTER_NAME: "default-cluster"
+  DRY_RUN: "False"
+  BEARER_TOKEN: ""
+
+hostNetwork: true
+
+dnsConfig: {}
