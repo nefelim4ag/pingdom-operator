@@ -1,5 +1,5 @@
 image:
-  repository: docker pull ghcr.io/nefelim4ag/pingdom-operator
+  repository: ghcr.io/nefelim4ag/pingdom-operator
   tag: 0.0.1
   pullPolicy: IfNotPresent
   imagePullSecrets: []

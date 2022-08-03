@@ -9,7 +9,7 @@ kind: ClusterRole
 metadata:
   name: {{ .Release.Namespace }}-{{ .Release.Name }}
 rules:
-- apiGroups: [""]
+- apiGroups: ["networking.k8s.io"]
   resources: ["ingress"]
   verbs: ["get", "watch", "list"]
 ---
