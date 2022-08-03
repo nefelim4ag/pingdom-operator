@@ -81,11 +81,12 @@ class Pingdom:
             r.headers["authorization"] = "Bearer " + self.token
             return r
 
-    def __init__(self, token):
+    def __init__(self, token, dry_run=False):
         self.s = requests.Session()
         self.s.auth = self.BearerAuth(token)
         self.s.headers['Content-type'] = 'application/json'
         self.tags_filter = []
+        self.dry_run = False
 
     def api_url(self, *args):
         url = "https://api.pingdom.com/api/3.1/"
@@ -298,7 +299,6 @@ class Pingdom:
     def modify_check(self, checkid: int, ingress):
         response = None
         check_body = self.describe_check(checkid)
-        print(json.dumps(check_body, indent=4))
         type = list(check_body['type'])[0]
         if type != 'http':
             raise Exception(
@@ -370,8 +370,14 @@ class Pingdom:
                             "  {}: {} -> {}".format(key, check_body['type'][type][key], value))
                         check_modify_request['type'][type][key] = value
 
+        if not check_modify_request:
+            return {'message': 'Nothing to modify!'}
+
         print("  check_modify_request: {}".format(
             json.dumps(check_modify_request)))
+
+        if self.dry_run:
+            return {'message': 'Modification of check was successful!'}
 
         url = self.api_url('checks', checkid)
 
@@ -386,9 +392,11 @@ class Pingdom:
 def main():
     token = os.environ.get('BEARER_TOKEN')
     cluster_name = os.environ.get('CLUSTER_NAME', "default-cluster")
+    dry_run = bool(os.environ.get('DRY_RUN', "false"))
 
     p = Pingdom(token)
     p.tags_filter = ['pingdom-operator', cluster_name]
+    p.dry_run = dry_run
 
     k = Kubernetes()
 
