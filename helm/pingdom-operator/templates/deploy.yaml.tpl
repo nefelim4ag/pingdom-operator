@@ -10,7 +10,7 @@ metadata:
   name: {{ .Release.Namespace }}-{{ .Release.Name }}
 rules:
 - apiGroups: ["networking.k8s.io"]
-  resources: ["ingress"]
+  resources: ["ingresses"]
   verbs: ["get", "watch", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
