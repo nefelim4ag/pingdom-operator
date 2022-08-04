@@ -442,8 +442,8 @@ class Pingdom:
                     "  {}: {} -> {}".format('encryption', check_body[key], value))
                 check_modify_request['encryption'] = value
 
-        if list(ingress.hosts)[0]:
-            value = list(ingress.hosts)[0]
+        if ingress.hosts:
+            value = ingress.hosts[0]
             if check_body['hostname'] != value:
                 print("  {}: {} -> {}".format('hostname',
                                               check_body['hostname'], value))
@@ -538,16 +538,15 @@ def main():
     pause_time = 60
     while True:
         for ingress in k.pingdom_ingresses():
-            if ingress.annotations.get('pingdom-operator.io/name'):
-                name = ingress.annotations.get('pingdom-operator.io/name')
+            if name := ingress.annotations.get('pingdom-operator.io/name'):
                 check = p.describe_check(name=name)
                 if check:
                     checkid = check['id']
                     p.modify_check(checkid, ingress)
                     continue
             # Doesn't support several hosts in one ingress
-            if list(ingress.hosts):
-                host = list(ingress.hosts)[0]
+            if ingress.hosts:
+                host = ingress.hosts[0]
                 check = p.describe_check(hostname=host)
                 if check:
                     checkid = check['id']
