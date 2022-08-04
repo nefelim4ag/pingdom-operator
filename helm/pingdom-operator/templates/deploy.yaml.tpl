@@ -58,3 +58,11 @@ spec:
           {{- end }}
           {{- end }}
           resources: {{ .Values.resources | toJson }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $.Release.Name }}-integrations
+data:
+  integrations: |
+    {{ .Values.integrations | toJson | indent 4}}

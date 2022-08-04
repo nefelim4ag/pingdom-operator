@@ -1,6 +1,6 @@
 image:
   repository: ghcr.io/nefelim4ag/pingdom-operator
-  tag: 0.0.2
+  tag: 0.0.3
   pullPolicy: IfNotPresent
   imagePullSecrets: []
 
@@ -19,7 +19,16 @@ env:
   CLUSTER_NAME: "default-cluster"
   DRY_RUN: "False"
   BEARER_TOKEN: ""
+  INTEGRATIONS_MAPPING:
+    valueFrom:
+      configMapKeyRef:
+        name: "{{ .Release.Name }}-integrations"
+        key: integrations
 
 hostNetwork: true
 
 dnsConfig: {}
+
+# Dictionary
+integrations: {}
+#  "integration name": 1234
