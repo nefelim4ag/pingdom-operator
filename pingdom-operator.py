@@ -20,7 +20,7 @@ class Kubernetes:
         hosts: list = None
         integrationids: list = None
 
-        def __init__(self, ingress):
+        def __init__(self, ingress, integrations_mapping=None):
             self.name = ingress.metadata.name
             self.namespace = ingress.metadata.namespace
             self.annotations = ingress.metadata.annotations
@@ -29,14 +29,27 @@ class Kubernetes:
             self.hosts = []
             for rule in ingress.spec.rules:
                 self.hosts.append(rule.host)
-            self.integrationids = self.__integrations()
+            self.integrationids = self.__integrations(integrations_mapping)
 
-        def __integrations(self):
-            integrationids_str = self.annotations.get(
-                'pingdom-operator.io/integrations').split(',')
+        def __integrations(self, integrations_mapping=None):
+            annotation = 'pingdom-operator.io/integrations'
+            value = self.annotations.get(annotation)
+
             integrationids = []
-            for integrationid_str in integrationids_str:
-                integrationids.append(int(integrationid_str))
+            for integrationid_str in value.split(','):
+                integrationid = None
+                try:
+                    integrationid = int(integrationid_str)
+                # Handle mapped values
+                except ValueError as e:
+                    if integrations_mapping:
+                        integrationid = integrations_mapping[integrationid_str]
+                    else:
+                        print("Ingress: {}/{} ~ annotations.{}: {}".format(
+                            self.namespace, self.name, annotation, value))
+                        raise e
+                if int(integrationid) not in integrationids:
+                    integrationids.append(int(integrationid))
             return integrationids
 
         def json(self):
@@ -69,13 +82,14 @@ class Kubernetes:
 
         return response.items
 
-    def pingdom_ingresses(self):
+    def pingdom_ingresses(self, integrations_mapping=None):
         ingresses_list = []
         for ingress in self.list_ingress_for_all_namespaces():
             # Add only ingresses with pingdom operator annotations
             for annotation in ingress.metadata.annotations:
                 if annotation.startswith("pingdom-operator.io/"):
-                    ingresses_list.append(self.Ingress(ingress))
+                    parsed = self.Ingress(ingress, integrations_mapping)
+                    ingresses_list.append(parsed)
                     break
 
         return ingresses_list
@@ -517,10 +531,14 @@ class Pingdom:
 
         return dict(response.json())
 
+
 def main():
     token = os.environ.get('BEARER_TOKEN')
     cluster_name = os.environ.get('CLUSTER_NAME', "default-cluster")
     dry_run = os.environ.get('DRY_RUN', "False")
+    integrations_mapping = json.loads(
+        os.environ.get('INTEGRATIONS_MAPPING', '{}'))
+
     if dry_run.lower() in ['false', "0"]:
         dry_run = False
 
@@ -534,10 +552,11 @@ def main():
     print("dry_run: {}".format(p.dry_run))
     print("cluster_name: {}".format(cluster_name))
     print("owner tags: {}".format(list(p.tags_filter)))
+    print("integrations: {}".format(json.dumps(integrations_mapping)))
 
     pause_time = 60
     while True:
-        for ingress in k.pingdom_ingresses():
+        for ingress in k.pingdom_ingresses(integrations_mapping):
             if name := ingress.annotations.get('pingdom-operator.io/name'):
                 check = p.describe_check(name=name)
                 if check:
@@ -557,13 +576,12 @@ def main():
 
         for check in p.checks(*p.tags_filter):
             candidate_checkid = check['id']
-            for ingress in k.pingdom_ingresses():
+            for ingress in k.pingdom_ingresses(integrations_mapping):
                 if ingress.hosts and check['hostname'] == ingress.hosts[0]:
                     candidate_checkid = None
                     break
             if candidate_checkid:
                 p.delete_check(candidate_checkid)
-
 
         time.sleep(pause_time)
 
