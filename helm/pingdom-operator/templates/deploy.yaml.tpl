@@ -12,6 +12,12 @@ rules:
 - apiGroups: ["networking.k8s.io"]
   resources: ["ingresses"]
   verbs: ["get", "watch", "list"]
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["CustomResourceDefinition"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: [""]
+  resouces: ["namespaces"]
+  verbs: ["get", "watch", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
