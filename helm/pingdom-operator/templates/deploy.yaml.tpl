@@ -9,15 +9,38 @@ kind: ClusterRole
 metadata:
   name: {{ .Release.Namespace }}-{{ .Release.Name }}
 rules:
-- apiGroups: ["networking.k8s.io"]
-  resources: ["ingresses"]
-  verbs: ["get", "watch", "list"]
-- apiGroups: ["apiextensions.k8s.io"]
-  resources: ["CustomResourceDefinition"]
-  verbs: ["get", "watch", "list"]
-- apiGroups: [""]
-  resouces: ["namespaces"]
-  verbs: ["get", "watch", "list"]
+  - verbs:
+      - get
+      - watch
+      - list
+    apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingresses
+  - verbs:
+      - get
+      - watch
+      - list
+    apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - ''
+    resources:
+      - namespaces
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - 'projectcontour.io'
+    resources:
+      - httpproxies
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
