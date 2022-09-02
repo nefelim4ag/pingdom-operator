@@ -661,11 +661,14 @@ class Pingdom:
         return dict(response.json())
 
     def delete_check(self, checkid: int):
+        check = self.describe_check(checkid=checkid)
         url = self.api_url('checks')
         payload = {
             'delcheckids': str(checkid)
         }
         response = self.s.delete(url, json=payload)
+        print("Remove check: {} with id - {}".format(check["name"], checkid))
+
         response.raise_for_status()
         self.__parse_headers(response.headers)
         self.__clear_caches()
