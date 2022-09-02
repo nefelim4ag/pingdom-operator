@@ -1,6 +1,6 @@
 image:
   repository: ghcr.io/nefelim4ag/pingdom-operator
-  tag: 0.0.5
+  tag: 0.0.6
   pullPolicy: IfNotPresent
   imagePullSecrets: []
 
