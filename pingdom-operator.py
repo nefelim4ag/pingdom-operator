@@ -41,7 +41,12 @@ class Kubernetes:
                 # Handle mapped values
                 except ValueError as e:
                     if integrations_mapping:
-                        integrationid = integrations_mapping[integrationid_str]
+                        try:
+                            integrationid = integrations_mapping[integrationid_str]
+                        except KeyError as e:
+                            print("No mapping for integration: \"{}\"".format(
+                                integrationid_str))
+                            raise e
                     else:
                         print("Ingress: {}/{} ~ annotations.{}: {}".format(
                             self.namespace, self.name, annotation, value))
@@ -287,7 +292,9 @@ class Pingdom:
         for i in args:
             tags.append(str(i))
         if tags:
+            # Pingdom api interprets tags filter as OR filter, not AND
             params["tags"] = ','.join(tags)
+            params["include_tags"] = True
             response = self.s.get(url, params=params, json={})
         else:
             response = self.s.get(url, json={})
@@ -309,9 +316,32 @@ class Pingdom:
         #     "lastresponsetime": 58,
         #     "lastdownstart": 1656032801,
         #     "lastdownend": 1656032861,
-        #     "status": "up"
+        #     "status": "up",
+        #     "tags": [
+        #       {
+        #         "name": "pingdom-operator",
+        #         "type": "u",
+        #         "count": 4
+        #       },
+        #       {
+        #         "name": "dev",
+        #         "type": "u",
+        #         "count": 3
+        #       }
+        #     ]
         # }
-        return response.json()['checks']
+
+        # Filter by tags, emulate AND filter
+        checks_list = response.json()['checks']
+        checks_list_filtered = []
+        for check in checks_list:
+            check_tags = []
+            for tag in check["tags"]:
+                check_tags.append(tag["name"])
+            if sorted(check_tags) == sorted(tags):
+                checks_list_filtered.append(check)
+
+        return checks_list_filtered
 
     @cached(cache=TTLCache(maxsize=1024, ttl=600), lock=Lock())
     def describe_check(self, checkid: int = 0, name: str = None, hostname: str = None):
