@@ -201,7 +201,7 @@ class Kubernetes:
         if self.is_exists_httpProxy:
             for httpproxy in self.list_httpproxy_for_all_namespaces():
                 # Add only ingresses with pingdom operator annotations
-                for annotation in httpproxy["metadata"]["annotations"]:
+                for annotation in httpproxy["metadata"].get("annotations", []):
                     if annotation.startswith("pingdom-operator.io/"):
                         parsed = self.HttpProxy(
                             httpproxy, integrations_mapping)
