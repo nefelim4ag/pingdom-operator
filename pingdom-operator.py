@@ -123,79 +123,78 @@ class Kubernetes:
                 config.load_kube_config()
             except config.ConfigException:
                 raise Exception("Could not configure kubernetes python client")
-        self.NetworkingV1Api = client.NetworkingV1Api()
-        self.CoreV1Api = client.CoreV1Api()
-        self.CustomObjectsApi = client.CustomObjectsApi()
-        self.ApiextensionsV1Api = client.ApiextensionsV1Api()
-
-        self.list_custom_resource_definition()
-
-    @cached(cache=TTLCache(maxsize=1, ttl=90), lock=Lock())
-    def list_ingress_for_all_namespaces(self):
-        try:
-            response = self.NetworkingV1Api.list_ingress_for_all_namespaces()
-        except ApiException as e:
-            print(e)
-            exit(1)
-
-        return response.items
-
-    @cached(cache=TTLCache(maxsize=1, ttl=90), lock=Lock())
-    def list_custom_resource_definition(self):
-        try:
-            crd_list = self.ApiextensionsV1Api.list_custom_resource_definition()
-        except ApiException as e:
-            print(e)
-            exit(1)
 
         self.is_exists_httpProxy = False
+        self.check_enable_crd()
+
+    def list_namespaces(self):
+        CoreV1Api = client.CoreV1Api()
+        try:
+            response = CoreV1Api.list_namespace()
+        except ApiException as e:
+            print(e)
+            exit(1)
+
+        for item in response.items:
+            yield item.metadata.name
+
+        return None
+
+    def list_ingress_for_all_namespaces(self):
+        NetworkingV1Api = client.NetworkingV1Api()
+        for namespace in self.list_namespaces():
+            try:
+                response = NetworkingV1Api.list_namespaced_ingress(namespace)
+            except ApiException as e:
+                print(e)
+                exit(1)
+
+            for item in response.items:
+                yield item
+
+        return None
+
+    def check_enable_crd(self):
+        ApiextensionsV1Api = client.ApiextensionsV1Api()
+        try:
+            crd_list = ApiextensionsV1Api.list_custom_resource_definition()
+        except ApiException as e:
+            print(e)
+            exit(1)
+
         for item in crd_list.items:
             if "httpproxies.projectcontour.io" == item.metadata.name:
                 self.is_exists_httpProxy = True
                 print("Contour HTTPProxy: support enabled")
 
-    @cached(cache=TTLCache(maxsize=1, ttl=90), lock=Lock())
     def list_httpproxy_for_all_namespaces(self):
         if not self.is_exists_httpProxy:
             return None
-
-        try:
-            response = self.CoreV1Api.list_namespace()
-        except ApiException as e:
-            print(e)
-            exit(1)
-
-        namespaces = []
-        for item in response.items:
-            namespaces.append(item.metadata.name)
 
         group = "projectcontour.io"
         v = "v1"
         plural = "httpproxies"
 
-        httpproxies = []
-
-        for namespace in namespaces:
+        CustomObjectsApi = client.CustomObjectsApi()
+        for namespace in self.list_namespaces():
             try:
-                response = self.CustomObjectsApi.list_namespaced_custom_object(
+                response = CustomObjectsApi.list_namespaced_custom_object(
                     group, v, namespace, plural)
             except ApiException as e:
                 print(e)
                 exit(1)
 
             for item in list(response.items())[1][1]:
-                httpproxies.append(item)
+                yield item
 
-        return httpproxies
+        return None
 
     def pingdom_ingresses(self, integrations_mapping=None):
-        ingresses_list = []
         for ingress in self.list_ingress_for_all_namespaces():
             # Add only ingresses with pingdom operator annotations
             for annotation in ingress.metadata.annotations:
                 if annotation.startswith("pingdom-operator.io/"):
-                    parsed = self.Ingress(ingress, integrations_mapping)
-                    ingresses_list.append(parsed)
+                    yield self.Ingress(ingress, integrations_mapping)
                     break
 
         if self.is_exists_httpProxy:
@@ -203,12 +202,10 @@ class Kubernetes:
                 # Add only ingresses with pingdom operator annotations
                 for annotation in httpproxy["metadata"].get("annotations", []):
                     if annotation.startswith("pingdom-operator.io/"):
-                        parsed = self.HttpProxy(
-                            httpproxy, integrations_mapping)
-                        ingresses_list.append(parsed)
+                        yield self.HttpProxy(httpproxy, integrations_mapping)
                         break
 
-        return ingresses_list
+        return None
 
 
 class Pingdom:
@@ -333,15 +330,14 @@ class Pingdom:
 
         # Filter by tags, emulate AND filter
         checks_list = response.json()['checks']
-        checks_list_filtered = []
         for check in checks_list:
             check_tags = []
             for tag in check["tags"]:
                 check_tags.append(tag["name"])
             if sorted(check_tags) == sorted(tags):
-                checks_list_filtered.append(check)
+                yield check
 
-        return checks_list_filtered
+        return None
 
     @cached(cache=TTLCache(maxsize=1024, ttl=600), lock=Lock())
     def describe_check(self, checkid: int = 0, name: str = None, hostname: str = None):
@@ -674,7 +670,6 @@ class Pingdom:
         self.__clear_caches()
 
         return dict(response.json())
-
 
 def main():
     token = os.environ.get('BEARER_TOKEN')
