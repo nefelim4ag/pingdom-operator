@@ -532,7 +532,13 @@ class Pingdom:
         url = self.api_url('checks')
 
         response = self.s.post(url, json=create_request)
-        response.raise_for_status()
+
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError:
+            print(response.json()["error"])
+            return dict(response.json())
+
         self.__parse_headers(response.headers)
         self.__clear_caches()
 
