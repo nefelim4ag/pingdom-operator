@@ -1,5 +1,6 @@
 FROM python:3.11
-COPY library pingdom-operator.py requirements.txt /opt/pingdom-operator/
+COPY library /opt/pingdom-operator/library
+COPY pingdom-operator.py requirements.txt /opt/pingdom-operator/
 WORKDIR /opt/pingdom-operator
 RUN pip install -r requirements.txt
 
