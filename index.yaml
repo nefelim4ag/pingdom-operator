@@ -2,6 +2,16 @@ apiVersion: v1
 entries:
   pingdom-operator:
   - apiVersion: v2
+    appVersion: 0.0.10
+    created: "2023-06-08T01:50:16.376870243Z"
+    description: A Helm chart for Kubernetes
+    digest: 78fcdd1344edce0e2928a47e9421ca7cdcfbe22c9d17401d1575e7cb0999150e
+    name: pingdom-operator
+    type: application
+    urls:
+    - https://github.com/Nefelim4ag/pingdom-operator/releases/download/pingdom-operator-0.0.15/pingdom-operator-0.0.15.tgz
+    version: 0.0.15
+  - apiVersion: v2
     appVersion: 0.0.9
     created: "2023-06-01T17:14:05.710675933Z"
     description: A Helm chart for Kubernetes
@@ -131,4 +141,4 @@ entries:
     urls:
     - https://github.com/Nefelim4ag/pingdom-operator/releases/download/pingdom-operator-0.0.1/pingdom-operator-0.0.1.tgz
     version: 0.0.1
-generated: "2023-06-01T17:14:05.711084334Z"
+generated: "2023-06-08T01:50:16.376960243Z"
