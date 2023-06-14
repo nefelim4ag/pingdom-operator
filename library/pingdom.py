@@ -73,8 +73,8 @@ class Pingdom:
         #     "CF-RAY": "733eb6789c4268fb-FRA",
         #     "Content-Encoding": "gzip"
         # }
-        self.req_limit_short = dict(headers)["req-limit-short"]
-        self.req_limit_long = dict(headers)["req-limit-long"]
+        self.req_limit_short = dict(headers).get("req-limit-short")
+        self.req_limit_long = dict(headers).get("req-limit-long")
 
     def checks(self, *args):
         response = None
