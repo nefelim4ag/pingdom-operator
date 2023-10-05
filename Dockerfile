@@ -1,4 +1,4 @@
-FROM python:3.11
+FROM python:3.12
 COPY library /opt/pingdom-operator/library
 COPY pingdom-operator.py requirements.txt /opt/pingdom-operator/
 WORKDIR /opt/pingdom-operator
