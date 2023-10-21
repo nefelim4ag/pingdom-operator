@@ -4,6 +4,8 @@ import json
 import logging
 import requests
 
+from tenacity import retry, stop_after_attempt, wait_exponential
+
 class Pingdom:
     class BearerAuth(requests.auth.AuthBase):
         def __init__(self, token):
@@ -76,6 +78,10 @@ class Pingdom:
         self.req_limit_short = dict(headers).get("req-limit-short")
         self.req_limit_long = dict(headers).get("req-limit-long")
 
+    @retry(
+        stop=stop_after_attempt(5), # Maximum number of retries
+        wait=wait_exponential(multiplier=1, min=1, max=60) # Exponential backoff
+    )
     def checks(self, *args):
         response = None
         url = self.api_url('checks')
