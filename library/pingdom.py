@@ -382,12 +382,18 @@ class Pingdom:
         }
         logging.debug("Processing checkid: {}".format(checkid))
 
+        port = 80
         if ingress.https:
-            value = ingress.https
-            if check_body['type'][type]['encryption'] != value:
-                logging.info(
-                    "  {}: {} -> {}".format('encryption', check_body['type'], value))
-                check_modify_request['encryption'] = value
+            port = 443
+
+        encryption = ingress.https
+        if check_body['type'][type]['encryption'] != encryption:
+            logging.info(
+                "  {}: {} -> {}".format('encryption', check_body['type'], encryption))
+            check_modify_request['encryption'] = encryption
+
+        if check_body['type'][type]['port'] != port:
+            check_modify_request['port'] = port
 
         if ingress.hosts:
             value = ingress.hosts[0]
